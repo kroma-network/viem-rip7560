@@ -33,6 +33,7 @@ export type TransactionType =
   | 'eip2930'
   | 'eip4844'
   | 'eip7702'
+  | 'rip7560'
   | (string & {})
 
 export type TransactionReceipt<
@@ -192,6 +193,43 @@ export type TransactionEIP7702<
   type: type
 } & FeeValuesEIP1559<quantity>
 
+export type TransactionRIP7560<
+  quantity = bigint,
+  index = number,
+  isPending extends boolean = boolean,
+  type = 'rip7560',
+> = TransactionBase<quantity, index, isPending> & {
+  /** EIP-2930 Access List. */
+  accessList: AccessList
+  /** Chain ID that this transaction is valid on. */
+  chainId: index
+  /** The nonce key associated with this transaction. */
+  nonceKey?: quantity
+  /** The address of the sender (account). */
+  sender: Address
+  /** The data associated with the transaction. */
+  executionData: Hex
+  /** The fee paid to the block builder. */
+  builderFee?: quantity
+  /** The gas limit for the verification of the transaction. */
+  verificationGasLimit: quantity
+  /** The address of the deployer (account factory). */
+  deployer?: Address
+  /** The data associated with the deployer (account factory). */
+  deployerData?: Hex
+  /** The address of the paymaster. */
+  paymaster?: Address
+  /** The data associated with the paymaster. */
+  paymasterData?: Hex
+  /** The gas limit for the paymaster verification step. */
+  paymasterVerificationGasLimit?: quantity
+  /** The gas limit for the paymaster post-op step. */
+  paymasterPostOpGasLimit?: quantity
+  /** The data associated with the authorization. */
+  authorizationData: Hex
+  type: type
+} & FeeValuesEIP1559<quantity>
+
 export type Transaction<
   quantity = bigint,
   index = number,
@@ -202,6 +240,7 @@ export type Transaction<
   | TransactionEIP1559<quantity, index, isPending>
   | TransactionEIP4844<quantity, index, isPending>
   | TransactionEIP7702<quantity, index, isPending>
+  | TransactionRIP7560<quantity, index, isPending>
 >
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -278,12 +317,34 @@ export type TransactionRequestEIP7702<
     authorizationList?: AuthorizationList<index, boolean> | undefined
   }
 
+export type TransactionRequestRIP7560<
+  quantity = bigint,
+  index = number,
+  type = 'rip7560',
+> = TransactionRequestBase<quantity, index, type> &
+  ExactPartial<FeeValuesEIP1559<quantity>> & {
+    accessList?: AccessList | undefined
+    nonceKey?: quantity | undefined
+    sender: Address
+    executionData: Hex
+    builderFee?: quantity | undefined
+    verificationGasLimit: quantity
+    deployer?: Address | undefined
+    deployerData?: Hex | undefined
+    paymaster?: Address | undefined
+    paymasterData?: Hex | undefined
+    paymasterVerificationGasLimit?: quantity | undefined
+    paymasterPostOpGasLimit?: quantity | undefined
+    authorizationData: Hex
+  }
+
 export type TransactionRequest<quantity = bigint, index = number> = OneOf<
   | TransactionRequestLegacy<quantity, index>
   | TransactionRequestEIP2930<quantity, index>
   | TransactionRequestEIP1559<quantity, index>
   | TransactionRequestEIP4844<quantity, index>
   | TransactionRequestEIP7702<quantity, index>
+  | TransactionRequestRIP7560<quantity, index>
 >
 
 export type TransactionRequestGeneric<
@@ -308,6 +369,7 @@ export type TransactionSerializedEIP1559 = `0x02${string}`
 export type TransactionSerializedEIP2930 = `0x01${string}`
 export type TransactionSerializedEIP4844 = `0x03${string}`
 export type TransactionSerializedEIP7702 = `0x04${string}`
+export type TransactionSerializedRIP7560 = `0x05${string}`
 export type TransactionSerializedLegacy = Branded<`0x${string}`, 'legacy'>
 export type TransactionSerializedGeneric = `0x${string}`
 export type TransactionSerialized<
@@ -317,6 +379,7 @@ export type TransactionSerialized<
     | (type extends 'eip2930' ? TransactionSerializedEIP2930 : never)
     | (type extends 'eip4844' ? TransactionSerializedEIP4844 : never)
     | (type extends 'eip7702' ? TransactionSerializedEIP7702 : never)
+    | (type extends 'rip7560' ? TransactionSerializedRIP7560 : never)
     | (type extends 'legacy' ? TransactionSerializedLegacy : never),
 > = IsNever<result> extends true ? TransactionSerializedGeneric : result
 
@@ -391,12 +454,35 @@ export type TransactionSerializableEIP7702<
     yParity?: number | undefined
   }
 
+export type TransactionSerializableRIP7560<
+  quantity = bigint,
+  index = number,
+> = TransactionSerializableBase<quantity, index> &
+  ExactPartial<FeeValuesEIP1559<quantity>> & {
+    accessList?: AccessList | undefined
+    nonceKey?: quantity | undefined
+    sender: Address
+    executionData: Hex
+    builderFee?: quantity | undefined
+    verificationGasLimit: quantity
+    deployer?: Address | undefined
+    deployerData?: Hex | undefined
+    paymaster?: Address | undefined
+    paymasterData?: Hex | undefined
+    paymasterVerificationGasLimit?: quantity | undefined
+    paymasterPostOpGasLimit?: quantity | undefined
+    authorizationData?: Hex | undefined
+    chainId: number
+    type?: 'rip7560' | undefined
+  }
+
 export type TransactionSerializable<quantity = bigint, index = number> = OneOf<
   | TransactionSerializableLegacy<quantity, index>
   | TransactionSerializableEIP2930<quantity, index>
   | TransactionSerializableEIP1559<quantity, index>
   | TransactionSerializableEIP4844<quantity, index>
   | TransactionSerializableEIP7702<quantity, index>
+  | TransactionSerializableRIP7560<quantity, index>
 >
 
 export type TransactionSerializableGeneric<
@@ -413,5 +499,17 @@ export type TransactionSerializableGeneric<
   maxFeePerGas?: quantity | undefined
   maxPriorityFeePerGas?: quantity | undefined
   sidecars?: readonly BlobSidecar<Hex>[] | false | undefined
+  nonceKey?: quantity | undefined
+  sender?: Address | undefined
+  executionData?: Hex | undefined
+  builderFee?: quantity | undefined
+  verificationGasLimit?: quantity | undefined
+  deployer?: Address | undefined
+  deployerData?: Hex | undefined
+  paymaster?: Address | undefined
+  paymasterData?: Hex | undefined
+  paymasterVerificationGasLimit?: quantity | undefined
+  paymasterPostOpGasLimit?: quantity | undefined
+  authorizationData?: Hex | undefined
   type?: string | undefined
 }
