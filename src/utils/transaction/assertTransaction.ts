@@ -30,11 +30,29 @@ import type {
   TransactionSerializableEIP4844,
   TransactionSerializableEIP7702,
   TransactionSerializableLegacy,
+  TransactionSerializableRIP7560,
 } from '../../types/transaction.js'
 import { type IsAddressErrorType, isAddress } from '../address/isAddress.js'
 import { size } from '../data/size.js'
 import { slice } from '../data/slice.js'
 import { hexToNumber } from '../encoding/fromHex.js'
+
+// TODO: Will there be any other error types?
+export type AssertTransactionRIP7560ErrorType =
+  | AssertTransactionEIP1559ErrorType
+  | InvalidAddressErrorType
+  | InvalidChainIdErrorType
+  | ErrorType
+
+export function assertTransactionRIP7560(
+  transaction: TransactionSerializableRIP7560,
+) {
+  const { chainId, sender } = transaction
+  if (chainId <= 0) throw new InvalidChainIdError({ chainId })
+  if (sender && !isAddress(sender))
+    throw new InvalidAddressError({ address: sender })
+  assertTransactionEIP1559(transaction as {} as TransactionSerializableEIP1559)
+}
 
 export type AssertTransactionEIP7702ErrorType =
   | AssertTransactionEIP1559ErrorType

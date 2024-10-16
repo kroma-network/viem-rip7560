@@ -12,6 +12,7 @@ import type {
   TransactionSerializedEIP7702,
   TransactionSerializedGeneric,
   TransactionSerializedLegacy,
+  TransactionSerializedRIP7560,
   TransactionType,
 } from '../../types/transaction.js'
 import type { IsNarrowable, IsNever } from '../../types/utils.js'
@@ -34,6 +35,9 @@ export type GetSerializedTransactionType<
     | (serializedTransaction extends TransactionSerializedEIP7702
         ? 'eip7702'
         : never)
+    | (serializedTransaction extends TransactionSerializedRIP7560
+        ? 'rip7560'
+        : never)
     | (serializedTransaction extends TransactionSerializedLegacy
         ? 'legacy'
         : never),
@@ -55,6 +59,9 @@ export function getSerializedTransactionType<
   serializedTransaction: serializedTransaction,
 ): GetSerializedTransactionType<serializedTransaction> {
   const serializedType = sliceHex(serializedTransaction, 0, 1)
+
+  if (serializedType === '0x05')
+    return 'rip7560' as GetSerializedTransactionType<serializedTransaction>
 
   if (serializedType === '0x04')
     return 'eip7702' as GetSerializedTransactionType<serializedTransaction>

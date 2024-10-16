@@ -14,6 +14,7 @@ import type {
   TransactionSerializableEIP4844,
   TransactionSerializableEIP7702,
   TransactionSerializableGeneric,
+  TransactionSerializableRIP7560,
 } from '../../types/transaction.js'
 import type { Assign, ExactPartial, IsNever, OneOf } from '../../types/utils.js'
 
@@ -27,6 +28,7 @@ export type GetTransactionType<
     | (transaction extends EIP2930Properties ? 'eip2930' : never)
     | (transaction extends EIP4844Properties ? 'eip4844' : never)
     | (transaction extends EIP7702Properties ? 'eip7702' : never)
+    | (transaction extends RIP7560Properties ? 'rip7560' : never)
     | (transaction['type'] extends TransactionSerializableGeneric['type']
         ? Extract<transaction['type'], string>
         : never),
@@ -70,6 +72,8 @@ export function getTransactionType<
     if (typeof transaction.accessList !== 'undefined') return 'eip2930' as any
     return 'legacy' as any
   }
+
+  if (typeof transaction.sender !== 'undefined') return 'rip7560' as any
 
   throw new InvalidSerializableTransactionError({ transaction })
 }
@@ -131,4 +135,19 @@ type EIP7702Properties = Assign<
   {
     authorizationList: TransactionSerializableEIP7702['authorizationList']
   }
+>
+type RIP7560Properties = Assign<
+  ExactPartial<EIP1559Properties>,
+  OneOf<
+    | {
+        nonceKey: TransactionSerializableRIP7560['nonceKey']
+      }
+    | {
+        sender: TransactionSerializableRIP7560['sender']
+      }
+    | {
+        executionData: TransactionSerializableRIP7560['executionData']
+      },
+    TransactionSerializableRIP7560
+  >
 >
