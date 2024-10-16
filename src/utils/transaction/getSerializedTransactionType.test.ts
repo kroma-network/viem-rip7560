@@ -21,6 +21,18 @@ test('eip4844', () => {
   expect(type).toEqual('eip4844')
 })
 
+test('eip7702', () => {
+  const type = getSerializedTransactionType('0x04abc')
+  assertType<'eip7702'>(type)
+  expect(type).toEqual('eip7702')
+})
+
+test('rip7560', () => {
+  const type = getSerializedTransactionType('0x05abc')
+  assertType<'rip7560'>(type)
+  expect(type).toEqual('rip7560')
+})
+
 test('legacy', () => {
   const type = getSerializedTransactionType('0xc7c')
   assertType<'legacy'>(type)
