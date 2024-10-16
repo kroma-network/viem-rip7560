@@ -9,11 +9,13 @@ import type {
   TransactionSerializableEIP4844,
   TransactionSerializableEIP7702,
   TransactionSerializableLegacy,
+  TransactionSerializableRIP7560,
   TransactionSerializedEIP1559,
   TransactionSerializedEIP2930,
   TransactionSerializedEIP4844,
   TransactionSerializedEIP7702,
   TransactionSerializedLegacy,
+  TransactionSerializedRIP7560,
 } from '../../types/transaction.js'
 import { keccak256 } from '../hash/keccak256.js'
 import { parseEther } from '../unit/parseEther.js'
@@ -34,6 +36,57 @@ const base = {
   nonce: 785,
   value: parseEther('1'),
 } satisfies TransactionSerializableBase
+
+describe('rip7560', () => {
+  const baseRip7560 = {
+    nonce: 1,
+    sender: accounts[1].address,
+    chainId: 1,
+    verificationGasLimit: 1000000n,
+    executionData: '0x',
+    type: 'rip7560',
+  } as const satisfies TransactionSerializableRIP7560
+
+  test('default', () => {
+    const serialized = serializeTransaction(baseRip7560)
+    assertType<TransactionSerializedRIP7560>(serialized)
+    expect(serialized).toEqual(
+      '0x05e80101809470997970c51812dc3a010c7d01b50e0d17dc79c88080808080808080830f4240808080c0',
+    )
+    expect(parseTransaction(serialized)).toEqual({
+      ...baseRip7560,
+      type: 'rip7560',
+    })
+  })
+
+  test('args: gas', () => {
+    const args = {
+      ...baseRip7560,
+      gas: 21001n,
+    }
+    const serialized = serializeTransaction(args)
+    expect(serialized).toEqual(
+      '0x05ea0101809470997970c51812dc3a010c7d01b50e0d17dc79c88080808080808080830f42408080825209c0',
+    )
+    expect(parseTransaction(serialized)).toEqual({ ...args, type: 'rip7560' })
+  })
+
+  test('signature', () => {
+    const authorizationData = stringToHex('signature')
+    const serialized = serializeTransaction(baseRip7560, authorizationData)
+    const args = {
+      ...baseRip7560,
+      authorizationData,
+    }
+    expect(serialized).toEqual(
+      '0x05f20101809470997970c51812dc3a010c7d01b50e0d17dc79c88080808080808080830f4240808080c0897369676e6174757265',
+    )
+    expect(parseTransaction(serialized)).toEqual({
+      ...args,
+      type: 'rip7560',
+    })
+  })
+})
 
 describe('eip7702', () => {
   const baseEip7702 = {
