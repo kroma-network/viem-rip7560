@@ -24,12 +24,14 @@ import type {
   TransactionSerializableEIP4844,
   TransactionSerializableEIP7702,
   TransactionSerializableLegacy,
+  TransactionSerializableRIP7560,
   TransactionSerialized,
   TransactionSerializedEIP1559,
   TransactionSerializedEIP2930,
   TransactionSerializedEIP4844,
   TransactionSerializedEIP7702,
   TransactionSerializedGeneric,
+  TransactionSerializedRIP7560,
   TransactionType,
 } from '../../types/transaction.js'
 import type { IsNarrowable, Mutable } from '../../types/utils.js'
@@ -54,11 +56,13 @@ import {
   type AssertTransactionEIP4844ErrorType,
   type AssertTransactionEIP7702ErrorType,
   type AssertTransactionLegacyErrorType,
+  type AssertTransactionRIP7560ErrorType,
   assertTransactionEIP1559,
   assertTransactionEIP2930,
   assertTransactionEIP4844,
   assertTransactionEIP7702,
   assertTransactionLegacy,
+  assertTransactionRIP7560,
 } from './assertTransaction.js'
 import {
   type GetSerializedTransactionType,
@@ -75,6 +79,7 @@ export type ParseTransactionReturnType<
       | (type extends 'eip2930' ? TransactionSerializableEIP2930 : never)
       | (type extends 'eip4844' ? TransactionSerializableEIP4844 : never)
       | (type extends 'eip7702' ? TransactionSerializableEIP7702 : never)
+      | (type extends 'rip7560' ? TransactionSerializableRIP7560 : never)
       | (type extends 'legacy' ? TransactionSerializableLegacy : never)
   : TransactionSerializable
 
@@ -84,6 +89,7 @@ export type ParseTransactionErrorType =
   | ParseTransactionEIP2930ErrorType
   | ParseTransactionEIP4844ErrorType
   | ParseTransactionEIP7702ErrorType
+  | ParseTransactionRIP7560ErrorType
   | ParseTransactionLegacyErrorType
 
 export function parseTransaction<
@@ -111,9 +117,121 @@ export function parseTransaction<
       serializedTransaction as TransactionSerializedEIP7702,
     ) as ParseTransactionReturnType<serialized>
 
+  if (type === 'rip7560')
+    return parseTransactionRIP7560(
+      serializedTransaction as TransactionSerializedRIP7560,
+    ) as ParseTransactionReturnType<serialized>
+
   return parseTransactionLegacy(
     serializedTransaction,
   ) as ParseTransactionReturnType<serialized>
+}
+
+type ParseTransactionRIP7560ErrorType =
+  | ToTransactionArrayErrorType
+  | AssertTransactionRIP7560ErrorType
+  | ToTransactionArrayErrorType
+  | HexToBigIntErrorType
+  | HexToNumberErrorType
+  | InvalidLegacyVErrorType
+  | InvalidSerializedTransactionErrorType
+  | IsHexErrorType
+  | ParseEIP155SignatureErrorType
+  | ErrorType
+
+function parseTransactionRIP7560(
+  serializedTransaction: TransactionSerializedRIP7560,
+): TransactionSerializableRIP7560 {
+  const transactionArray = toTransactionArray(serializedTransaction)
+
+  const [
+    chainId,
+    nonce,
+    nonceKey,
+    sender,
+    deployer,
+    deployerData,
+    paymaster,
+    paymasterData,
+    executionData,
+    builderFee,
+    maxPriorityFeePerGas,
+    maxFeePerGas,
+    verificationGasLimit,
+    paymasterVerificationGasLimit,
+    paymasterPostOpGasLimit,
+    gas,
+    accessList,
+    authorizationData,
+  ] = transactionArray
+
+  if (transactionArray.length !== 17 && transactionArray.length !== 18)
+    throw new InvalidSerializedTransactionError({
+      attributes: {
+        chainId,
+        nonce,
+        nonceKey,
+        sender,
+        deployer,
+        deployerData,
+        paymaster,
+        paymasterData,
+        executionData,
+        builderFee,
+        maxPriorityFeePerGas,
+        maxFeePerGas,
+        verificationGasLimit,
+        paymasterVerificationGasLimit,
+        paymasterPostOpGasLimit,
+        gas,
+        accessList,
+        authorizationData,
+      },
+      serializedTransaction,
+      type: 'rip7560',
+    })
+
+  const transaction = {
+    chainId: hexToNumber(chainId as Hex),
+    type: 'rip7560',
+  } as TransactionSerializableRIP7560
+  if (isHex(sender) && sender !== '0x') transaction.sender = sender
+  if (isHex(gas) && gas !== '0x') transaction.gas = hexToBigInt(gas)
+  if (isHex(executionData)) transaction.executionData = executionData
+  if (isHex(nonce) && nonce !== '0x') transaction.nonce = hexToNumber(nonce)
+  if (isHex(nonceKey) && nonceKey !== '0x')
+    transaction.nonceKey = hexToBigInt(nonceKey)
+  if (isHex(deployer) && deployer !== '0x') transaction.deployer = deployer
+  if (isHex(deployerData) && deployerData !== '0x')
+    transaction.deployerData = deployerData
+  if (isHex(paymaster) && paymaster !== '0x') transaction.paymaster = paymaster
+  if (isHex(paymasterData) && paymasterData !== '0x')
+    transaction.paymasterData = paymasterData
+  if (isHex(builderFee) && builderFee !== '0x')
+    transaction.builderFee = hexToBigInt(builderFee)
+  if (isHex(verificationGasLimit) && verificationGasLimit !== '0x')
+    transaction.verificationGasLimit = hexToBigInt(verificationGasLimit)
+  if (
+    isHex(paymasterVerificationGasLimit) &&
+    paymasterVerificationGasLimit !== '0x'
+  )
+    transaction.paymasterVerificationGasLimit = hexToBigInt(
+      paymasterVerificationGasLimit,
+    )
+  if (isHex(paymasterPostOpGasLimit) && paymasterPostOpGasLimit !== '0x')
+    transaction.paymasterPostOpGasLimit = hexToBigInt(paymasterPostOpGasLimit)
+  if (isHex(maxFeePerGas) && maxFeePerGas !== '0x')
+    transaction.maxFeePerGas = hexToBigInt(maxFeePerGas)
+  if (isHex(maxPriorityFeePerGas) && maxPriorityFeePerGas !== '0x')
+    transaction.maxPriorityFeePerGas = hexToBigInt(maxPriorityFeePerGas)
+  if (accessList.length !== 0 && accessList !== '0x')
+    transaction.accessList = parseAccessList(accessList as RecursiveArray<Hex>)
+  if (isHex(authorizationData) && authorizationData !== '0x')
+    transaction.authorizationData = authorizationData
+
+  assertTransactionRIP7560(transaction)
+
+  return transaction
 }
 
 type ParseTransactionEIP7702ErrorType =

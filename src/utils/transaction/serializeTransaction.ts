@@ -17,12 +17,14 @@ import type {
   TransactionSerializableEIP7702,
   TransactionSerializableGeneric,
   TransactionSerializableLegacy,
+  TransactionSerializableRIP7560,
   TransactionSerialized,
   TransactionSerializedEIP1559,
   TransactionSerializedEIP2930,
   TransactionSerializedEIP4844,
   TransactionSerializedEIP7702,
   TransactionSerializedLegacy,
+  TransactionSerializedRIP7560,
   TransactionType,
 } from '../../types/transaction.js'
 import type { OneOf } from '../../types/utils.js'
@@ -51,17 +53,20 @@ import {
   type SerializeAuthorizationListErrorType,
   serializeAuthorizationList,
 } from '../../experimental/eip7702/utils/serializeAuthorizationList.js'
+import { isHex } from '../data/isHex.js'
 import {
   type AssertTransactionEIP1559ErrorType,
   type AssertTransactionEIP2930ErrorType,
   type AssertTransactionEIP4844ErrorType,
   type AssertTransactionEIP7702ErrorType,
   type AssertTransactionLegacyErrorType,
+  type AssertTransactionRIP7560ErrorType,
   assertTransactionEIP1559,
   assertTransactionEIP2930,
   assertTransactionEIP4844,
   assertTransactionEIP7702,
   assertTransactionLegacy,
+  assertTransactionRIP7560,
 } from './assertTransaction.js'
 import {
   type GetTransactionType,
@@ -94,6 +99,7 @@ export type SerializeTransactionErrorType =
   | SerializeTransactionEIP2930ErrorType
   | SerializeTransactionEIP4844ErrorType
   | SerializeTransactionEIP7702ErrorType
+  | SerializeTransactionRIP7560ErrorType
   | SerializeTransactionLegacyErrorType
   | ErrorType
 
@@ -103,29 +109,35 @@ export function serializeTransaction<
   _transactionType extends TransactionType = GetTransactionType<transaction>,
 >(
   transaction: transaction,
-  signature?: Signature | undefined,
+  signature?: Signature | Hex | undefined,
 ): SerializedTransactionReturnType<transaction, _transactionType> {
   const type = getTransactionType(transaction) as GetTransactionType
 
-  if (type === 'eip1559')
+  if (type === 'rip7560' && (!signature || isHex(signature)))
+    return serializeTransactionRIP7560(
+      transaction as TransactionSerializableRIP7560,
+      signature,
+    ) as SerializedTransactionReturnType<transaction>
+
+  if (type === 'eip1559' && !isHex(signature))
     return serializeTransactionEIP1559(
       transaction as TransactionSerializableEIP1559,
       signature,
     ) as SerializedTransactionReturnType<transaction>
 
-  if (type === 'eip2930')
+  if (type === 'eip2930' && !isHex(signature))
     return serializeTransactionEIP2930(
       transaction as TransactionSerializableEIP2930,
       signature,
     ) as SerializedTransactionReturnType<transaction>
 
-  if (type === 'eip4844')
+  if (type === 'eip4844' && !isHex(signature))
     return serializeTransactionEIP4844(
       transaction as TransactionSerializableEIP4844,
       signature,
     ) as SerializedTransactionReturnType<transaction>
 
-  if (type === 'eip7702')
+  if (type === 'eip7702' && !isHex(signature))
     return serializeTransactionEIP7702(
       transaction as TransactionSerializableEIP7702,
       signature,
@@ -135,6 +147,69 @@ export function serializeTransaction<
     transaction as TransactionSerializableLegacy,
     signature as SignatureLegacy,
   ) as SerializedTransactionReturnType<transaction>
+}
+
+type SerializeTransactionRIP7560ErrorType =
+  | AssertTransactionRIP7560ErrorType
+  | ConcatHexErrorType
+  | InvalidLegacyVErrorType
+  | ToHexErrorType
+  | ToRlpErrorType
+  | ErrorType
+
+function serializeTransactionRIP7560(
+  transaction: TransactionSerializableRIP7560,
+  authorizationData?: Hex | undefined,
+): TransactionSerializedRIP7560 {
+  const {
+    chainId,
+    gas,
+    nonce,
+    accessList,
+    maxFeePerGas,
+    maxPriorityFeePerGas,
+    nonceKey,
+    sender,
+    executionData,
+    builderFee,
+    verificationGasLimit,
+    deployer,
+    deployerData,
+    paymaster,
+    paymasterData,
+    paymasterVerificationGasLimit,
+    paymasterPostOpGasLimit,
+  } = transaction
+
+  assertTransactionRIP7560(transaction)
+
+  const serializedAccessList = serializeAccessList(accessList)
+
+  const serializedTransaction = [
+    toHex(chainId),
+    nonce ? toHex(nonce) : '0x',
+    nonceKey ? toHex(nonceKey) : '0x',
+    sender,
+    deployer ?? '0x',
+    deployerData ?? '0x',
+    paymaster ?? '0x',
+    paymasterData ?? '0x',
+    executionData,
+    builderFee ? toHex(builderFee) : '0x',
+    maxPriorityFeePerGas ? toHex(maxPriorityFeePerGas) : '0x',
+    maxFeePerGas ? toHex(maxFeePerGas) : '0x',
+    toHex(verificationGasLimit),
+    paymasterVerificationGasLimit ? toHex(paymasterVerificationGasLimit) : '0x',
+    paymasterPostOpGasLimit ? toHex(paymasterPostOpGasLimit) : '0x',
+    gas ? toHex(gas) : '0x',
+    serializedAccessList,
+    ...(authorizationData ? [authorizationData] : []),
+  ]
+
+  return concatHex([
+    '0x05',
+    toRlp(serializedTransaction),
+  ]) as TransactionSerializedRIP7560
 }
 
 type SerializeTransactionEIP7702ErrorType =
