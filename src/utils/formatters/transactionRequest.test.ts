@@ -244,6 +244,37 @@ test('eip7702 transaction', () => {
   `)
 })
 
+test('rip7560 transaction', () => {
+  const baseRip7560: TransactionRequest = {
+    data: '0x1',
+    from: '0x1',
+    sender: '0x1',
+    gas: 69420420n,
+    executionData: '0x1',
+    verificationGasLimit: 69420420n,
+    nonce: 1,
+    authorizationData: '0x1',
+  }
+  expect(
+    formatTransactionRequest({
+      ...baseRip7560,
+      type: 'rip7560',
+    }),
+  ).toMatchInlineSnapshot(`
+    {
+      "authorizationData": "0x1",
+      "data": "0x1",
+      "executionData": "0x1",
+      "from": "0x1",
+      "gas": "0x4234584",
+      "nonce": "0x1",
+      "sender": "0x1",
+      "type": "0x5",
+      "verificationGasLimit": "0x4234584",
+    }
+  `)
+})
+
 test('nullish gas', () => {
   expect(
     formatTransactionRequest({
@@ -357,6 +388,7 @@ test('rpcTransactionType', () => {
       "eip4844": "0x3",
       "eip7702": "0x4",
       "legacy": "0x0",
+      "rip7560": "0x5",
     }
   `)
 })
