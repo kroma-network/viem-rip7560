@@ -42,6 +42,7 @@ export const transactionType = {
   '0x2': 'eip1559',
   '0x3': 'eip4844',
   '0x4': 'eip7702',
+  '0x5': 'rip7560',
 } as const satisfies Record<Hex, TransactionType>
 
 export type FormatTransactionErrorType = ErrorType
@@ -76,6 +77,34 @@ export function formatTransaction(transaction: ExactPartial<RpcTransaction>) {
     typeHex: transaction.type ? transaction.type : undefined,
     value: transaction.value ? BigInt(transaction.value) : undefined,
     v: transaction.v ? BigInt(transaction.v) : undefined,
+    nonceKey: transaction.nonceKey ? transaction.nonceKey : undefined,
+    sender: transaction.sender ? transaction.sender : undefined,
+    executionData: transaction.executionData
+      ? transaction.executionData
+      : undefined,
+    builderFee: transaction.builderFee
+      ? BigInt(transaction.builderFee)
+      : undefined,
+    verificationGasLimit: transaction.verificationGasLimit
+      ? BigInt(transaction.verificationGasLimit)
+      : undefined,
+    deployer: transaction.deployer ? transaction.deployer : undefined,
+    deployerData: transaction.deployerData
+      ? transaction.deployerData
+      : undefined,
+    paymaster: transaction.paymaster ? transaction.paymaster : undefined,
+    paymasterData: transaction.paymasterData
+      ? transaction.paymasterData
+      : undefined,
+    paymasterVerificationGasLimit: transaction.paymasterVerificationGasLimit
+      ? BigInt(transaction.paymasterVerificationGasLimit)
+      : undefined,
+    paymasterPostOpGasLimit: transaction.paymasterPostOpGasLimit
+      ? BigInt(transaction.paymasterPostOpGasLimit)
+      : undefined,
+    authorizationData: transaction.authorizationData
+      ? transaction.authorizationData
+      : undefined,
   } as Transaction
 
   if (transaction.authorizationList)
@@ -97,6 +126,24 @@ export function formatTransaction(transaction: ExactPartial<RpcTransaction>) {
     return undefined
   })()
 
+  if (transaction_.type !== 'rip7560') {
+    delete transaction_.nonceKey
+    delete transaction_.sender
+    delete transaction_.executionData
+    delete transaction_.builderFee
+    delete transaction_.verificationGasLimit
+    delete transaction_.deployer
+    delete transaction_.deployerData
+    delete transaction_.paymaster
+    delete transaction_.paymasterData
+    delete transaction_.paymasterVerificationGasLimit
+    delete transaction_.paymasterPostOpGasLimit
+    delete transaction_.authorizationData
+  } else {
+    delete transaction_.blobVersionedHashes
+    delete transaction_.maxFeePerBlobGas
+  }
+
   if (transaction_.type === 'legacy') {
     delete transaction_.accessList
     delete transaction_.maxFeePerBlobGas
@@ -110,6 +157,10 @@ export function formatTransaction(transaction: ExactPartial<RpcTransaction>) {
     delete transaction_.maxPriorityFeePerGas
   }
   if (transaction_.type === 'eip1559') {
+    delete transaction_.maxFeePerBlobGas
+  }
+  if (transaction_.type === 'rip7560') {
+    delete transaction_.blobVersionedHashes
     delete transaction_.maxFeePerBlobGas
   }
   return transaction_

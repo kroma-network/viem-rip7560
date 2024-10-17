@@ -26,6 +26,7 @@ export const rpcTransactionType = {
   eip1559: '0x2',
   eip4844: '0x3',
   eip7702: '0x4',
+  rip7560: '0x5',
 } as const
 
 export type FormatTransactionRequestErrorType = ErrorType
@@ -34,6 +35,34 @@ export function formatTransactionRequest(
   request: ExactPartial<TransactionRequest>,
 ) {
   const rpcRequest = {} as RpcTransactionRequest
+
+  if (typeof request.nonceKey !== 'undefined')
+    rpcRequest.nonceKey = numberToHex(request.nonceKey)
+  if (typeof request.sender !== 'undefined') rpcRequest.sender = request.sender
+  if (typeof request.executionData !== 'undefined')
+    rpcRequest.executionData = request.executionData
+  if (typeof request.builderFee !== 'undefined')
+    rpcRequest.builderFee = numberToHex(request.builderFee)
+  if (typeof request.verificationGasLimit !== 'undefined')
+    rpcRequest.verificationGasLimit = numberToHex(request.verificationGasLimit)
+  if (typeof request.deployer !== 'undefined')
+    rpcRequest.deployer = request.deployer
+  if (typeof request.deployerData !== 'undefined')
+    rpcRequest.deployerData = request.deployerData
+  if (typeof request.paymaster !== 'undefined')
+    rpcRequest.paymaster = request.paymaster
+  if (typeof request.paymasterData !== 'undefined')
+    rpcRequest.paymasterData = request.paymasterData
+  if (typeof request.paymasterVerificationGasLimit !== 'undefined')
+    rpcRequest.paymasterVerificationGasLimit = numberToHex(
+      request.paymasterVerificationGasLimit,
+    )
+  if (typeof request.paymasterPostOpGasLimit !== 'undefined')
+    rpcRequest.paymasterPostOpGasLimit = numberToHex(
+      request.paymasterPostOpGasLimit,
+    )
+  if (typeof request.authorizationData !== 'undefined')
+    rpcRequest.authorizationData = request.authorizationData
 
   if (typeof request.authorizationList !== 'undefined')
     rpcRequest.authorizationList = formatAuthorizationList(
