@@ -84,6 +84,19 @@ export {
   type VerifyAuthorizationErrorType,
   verifyAuthorization,
 } from './eip7702/utils/verifyAuthorization.js'
+export {
+  type ToNativeSmartAccountParameters,
+  type ToNativeSmartAccountReturnType,
+  toNativeSmartAccount,
+} from './rip7560/accounts/toNativeSmartAccount.js'
+export {
+  type ToSimpleNativeSmartAccountParameters,
+  type ToSimpleNativeSmartAccountReturnType,
+  type SimpleNativeSmartAccountImplementation,
+  toSimpleNativeSmartAccount,
+} from './rip7560/accounts/implementations/toSimpleNativeSmartAccount.js'
+export type { EstimateRIP7560TransactionGasReturnType } from './rip7560/types/gas.js'
+export type { Calls } from './rip7560/types/calls.js'
 
 export {
   type GrantPermissionsParameters,
