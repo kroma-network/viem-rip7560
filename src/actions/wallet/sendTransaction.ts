@@ -163,6 +163,18 @@ export async function sendTransaction<
     maxPriorityFeePerGas,
     nonce,
     value,
+    nonceKey,
+    sender,
+    executionData,
+    deployer,
+    deployerData,
+    paymaster,
+    paymasterData,
+    builderFee,
+    verificationGasLimit,
+    paymasterVerificationGasLimit,
+    paymasterPostOpGasLimit,
+    type,
     ...rest
   } = parameters
 
@@ -194,7 +206,7 @@ export async function sendTransaction<
       return undefined
     })()
 
-    if (account.type === 'json-rpc') {
+    if (account.type === 'json-rpc' || account.type === 'native-smart') {
       let chainId: number | undefined
       if (chain !== null) {
         chainId = await getAction(client, getChainId, 'getChainId')({})
@@ -224,6 +236,17 @@ export async function sendTransaction<
         nonce,
         to,
         value,
+        nonceKey,
+        sender,
+        executionData,
+        deployer,
+        deployerData,
+        paymaster,
+        paymasterData,
+        builderFee,
+        verificationGasLimit,
+        paymasterVerificationGasLimit,
+        paymasterPostOpGasLimit,
       } as TransactionRequest)
       return await client.request(
         {
