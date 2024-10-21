@@ -1,4 +1,5 @@
 import type { Address } from 'abitype'
+import type { PaymasterClient } from '../../account-abstraction/index.js'
 import type { Account } from '../../accounts/types.js'
 import {
   type ParseAccountErrorType,
@@ -28,10 +29,13 @@ import {
   Eip1559FeesNotSupportedError,
   MaxFeePerGasTooLowError,
 } from '../../errors/fee.js'
+import type { Calls } from '../../experimental/rip7560/types/calls.js'
+import type { EstimateRIP7560TransactionGasReturnType } from '../../experimental/rip7560/types/gas.js'
 import type { DeriveAccount, GetAccountParameter } from '../../types/account.js'
 import type { Block } from '../../types/block.js'
 import type { Chain, DeriveChain } from '../../types/chain.js'
 import type { GetChainParameter } from '../../types/chain.js'
+import type { ContractFunctionParameters } from '../../types/contract.js'
 import type { GetTransactionRequestKzgParameter } from '../../types/kzg.js'
 import type {
   TransactionRequest,
@@ -40,6 +44,7 @@ import type {
   TransactionRequestEIP4844,
   TransactionRequestEIP7702,
   TransactionRequestLegacy,
+  TransactionRequestRIP7560,
   TransactionSerializable,
 } from '../../types/transaction.js'
 import type {
@@ -49,6 +54,7 @@ import type {
   UnionOmit,
   UnionRequiredBy,
 } from '../../types/utils.js'
+import { encodeFunctionData } from '../../utils/abi/encodeFunctionData.js'
 import { blobsToCommitments } from '../../utils/blob/blobsToCommitments.js'
 import { blobsToProofs } from '../../utils/blob/blobsToProofs.js'
 import { commitmentsToVersionedHashes } from '../../utils/blob/commitmentsToVersionedHashes.js'
@@ -84,6 +90,18 @@ export type PrepareTransactionRequestParameterType =
   | 'nonce'
   | 'sidecars'
   | 'type'
+  | 'nonceKey'
+  | 'sender'
+  | 'executionData'
+  | 'builderFee'
+  | 'verificationGasLimit'
+  | 'deployer'
+  | 'deployerData'
+  | 'paymaster'
+  | 'paymasterData'
+  | 'paymasterVerificationGasLimit'
+  | 'paymasterPostOpGasLimit'
+  | 'authorizationData'
 type ParameterTypeToParameters<
   parameterType extends PrepareTransactionRequestParameterType,
 > = parameterType extends 'fees'
@@ -101,6 +119,14 @@ export type PrepareTransactionRequestRequest<
      * Nonce manager to use for the transaction request.
      */
     nonceManager?: NonceManager | undefined
+    /**
+     * Calls to execute inside RIP-7560 transaction.
+     */
+    calls?: Calls[] | undefined
+    /**
+     * Paymaster client to get the paymaster-related data in RIP-7560 transaction.
+     */
+    paymasterClient?: PaymasterClient | undefined
     /**
      * Parameters to prepare for the transaction request.
      *
@@ -154,7 +180,8 @@ export type PrepareTransactionRequestReturnType<
     | (_transactionType extends 'eip1559' ? TransactionRequestEIP1559 : never)
     | (_transactionType extends 'eip2930' ? TransactionRequestEIP2930 : never)
     | (_transactionType extends 'eip4844' ? TransactionRequestEIP4844 : never)
-    | (_transactionType extends 'eip7702' ? TransactionRequestEIP7702 : never),
+    | (_transactionType extends 'eip7702' ? TransactionRequestEIP7702 : never)
+    | (_transactionType extends 'rip7560' ? TransactionRequestRIP7560 : never),
 > = Prettify<
   UnionRequiredBy<
     Extract<
@@ -317,12 +344,16 @@ export async function prepareTransactionRequest<
   if (parameters.includes('chainId')) request.chainId = await getChainId()
 
   if (parameters.includes('nonce') && typeof nonce === 'undefined' && account) {
-    if (nonceManager) {
+    if (nonceManager && account.type !== 'native-smart') {
       const chainId = await getChainId()
       request.nonce = await nonceManager.consume({
         address: account.address,
         chainId,
         client,
+      })
+    } else if (account.type === 'native-smart') {
+      request.nonce = await account.getNonce({
+        key: request.nonceKey ?? BigInt(0),
       })
     } else {
       request.nonce = await getAction(
@@ -351,6 +382,37 @@ export async function prepareTransactionRequest<
         typeof block?.baseFeePerGas === 'bigint' ? 'eip1559' : 'legacy'
     }
   }
+
+  if (args.calls && account?.type === 'native-smart') {
+    request.executionData = await account.encodeCalls(
+      args.calls.map((call_) => {
+        const call = call_ as
+          | Calls
+          | (ContractFunctionParameters & { to: Address; value: bigint })
+        if ('abi' in call)
+          return {
+            data: encodeFunctionData(call),
+            to: call.to,
+            value: call.value,
+          } as Calls
+        return call as Calls
+      }),
+    )
+  }
+
+  if (parameters.includes('sender')) {
+    if (account) request.sender = account.address
+  }
+
+  if (parameters.includes('deployer')) {
+    if (account?.type === 'native-smart') {
+      const { deployer, deployerData } = await account.getDeployerArgs()
+      request.deployer = deployer
+      request.deployerData = deployerData
+    }
+  }
+
+  // TODO(7560): add paymaster-related data for RIP-7560 transaction.
 
   if (parameters.includes('fees')) {
     // TODO(4844): derive blob base fees once https://github.com/ethereum/execution-apis/pull/486 is merged.
@@ -403,21 +465,46 @@ export async function prepareTransactionRequest<
     }
   }
 
-  if (parameters.includes('gas') && typeof gas === 'undefined')
-    request.gas = await getAction(
-      client,
-      estimateGas,
-      'estimateGas',
-    )({
-      ...request,
-      account: account
-        ? { address: account.address, type: 'json-rpc' }
-        : undefined,
-    } as EstimateGasParameters)
+  if (parameters.includes('authorizationData') && !args.authorizationData) {
+    request.authorizationData = await account?.getStubSignature()
+  }
+
+  if (parameters.includes('gas') && typeof gas === 'undefined') {
+    if (account?.type !== 'native-smart') {
+      request.gas = (await getAction(
+        client,
+        estimateGas,
+        'estimateGas',
+      )({
+        ...request,
+        account: account
+          ? { address: account.address, type: 'json-rpc' }
+          : undefined,
+      } as EstimateGasParameters)) as bigint
+    } else {
+      const gasEstimationResult = (await getAction(
+        client,
+        estimateGas,
+        'estimateGas',
+      )({
+        gas: 0n,
+        builderFee: 0n,
+        verificationGasLimit: 0n,
+        ...request,
+        account: account
+          ? { address: account.address, type: 'native-smart' }
+          : undefined,
+      } as EstimateGasParameters)) as EstimateRIP7560TransactionGasReturnType
+
+      request.gas = gasEstimationResult.callGasLimit
+      request.verificationGasLimit = gasEstimationResult.verificationGasLimit
+    }
+  }
 
   assertRequest(request as AssertRequestParameters)
 
   delete request.parameters
+  delete request.calls
 
   return request as any
 }

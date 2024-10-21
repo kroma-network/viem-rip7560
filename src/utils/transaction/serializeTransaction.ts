@@ -109,14 +109,15 @@ export function serializeTransaction<
   _transactionType extends TransactionType = GetTransactionType<transaction>,
 >(
   transaction: transaction,
-  signature?: Signature | Hex | undefined,
+  signature?: Signature | undefined,
+  authorizationData?: Hex | undefined,
 ): SerializedTransactionReturnType<transaction, _transactionType> {
   const type = getTransactionType(transaction) as GetTransactionType
 
   if (type === 'rip7560' && (!signature || isHex(signature)))
     return serializeTransactionRIP7560(
       transaction as TransactionSerializableRIP7560,
-      signature,
+      authorizationData,
     ) as SerializedTransactionReturnType<transaction>
 
   if (type === 'eip1559' && !isHex(signature))
