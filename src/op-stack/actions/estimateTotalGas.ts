@@ -73,7 +73,7 @@ export async function estimateTotalGas<
 
   const [l1Gas, l2Gas] = await Promise.all([
     estimateL1Gas(client, request as EstimateL1GasParameters),
-    estimateGas(client, request as EstimateGasParameters),
+    estimateGas(client, request as EstimateGasParameters) as Promise<bigint>,
   ])
 
   return l1Gas + l2Gas
