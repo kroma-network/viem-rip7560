@@ -686,7 +686,12 @@ export type PublicRpcSchema = [
           block: BlockNumber | BlockTag,
           stateOverride: RpcStateOverride,
         ]
-    ReturnType: Quantity
+    ReturnType:
+      | Quantity
+      | {
+          verificationGasLimit: Quantity
+          callGasLimit: Quantity
+        }
   },
   /**
    * @description Returns a collection of historical gas information

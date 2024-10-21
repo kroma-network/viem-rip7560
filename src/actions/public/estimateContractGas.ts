@@ -119,7 +119,7 @@ export async function estimateContractGas<
       to: address,
       ...request,
     } as unknown as EstimateGasParameters)
-    return gas
+    return gas as bigint
   } catch (error) {
     const account = request.account ? parseAccount(request.account) : undefined
     throw getContractError(error as BaseError, {

@@ -241,6 +241,7 @@ import {
   type SendRawTransactionReturnType,
   sendRawTransaction,
 } from '../../actions/wallet/sendRawTransaction.js'
+import type { EstimateRIP7560TransactionGasReturnType } from '../../experimental/rip7560/types/gas.js'
 import type { Account } from '../../types/account.js'
 import type { BlockNumber, BlockTag } from '../../types/block.js'
 import type { Chain } from '../../types/chain.js'
@@ -491,7 +492,7 @@ export type PublicActions<
    */
   estimateGas: (
     args: EstimateGasParameters<chain>,
-  ) => Promise<EstimateGasReturnType>
+  ) => Promise<EstimateGasReturnType | EstimateRIP7560TransactionGasReturnType>
   /**
    * Returns the balance of an address in wei.
    *

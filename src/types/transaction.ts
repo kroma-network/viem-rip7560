@@ -335,7 +335,7 @@ export type TransactionRequestRIP7560<
     paymasterData?: Hex | undefined
     paymasterVerificationGasLimit?: quantity | undefined
     paymasterPostOpGasLimit?: quantity | undefined
-    authorizationData: Hex
+    authorizationData?: Hex | undefined
   }
 
 export type TransactionRequest<quantity = bigint, index = number> = OneOf<

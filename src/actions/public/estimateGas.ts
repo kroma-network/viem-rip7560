@@ -11,8 +11,10 @@ import {
   type RecoverAuthorizationAddressErrorType,
   recoverAuthorizationAddress,
 } from '../../experimental/eip7702/utils/recoverAuthorizationAddress.js'
+import type { EstimateRIP7560TransactionGasReturnType } from '../../experimental/rip7560/types/gas.js'
 import type { BlockTag } from '../../types/block.js'
 import type { Chain } from '../../types/chain.js'
+import type { Quantity } from '../../types/rpc.js'
 import type { StateOverride } from '../../types/stateOverride.js'
 import type { TransactionRequest } from '../../types/transaction.js'
 import type { UnionOmit } from '../../types/utils.js'
@@ -106,7 +108,7 @@ export async function estimateGas<
 >(
   client: Client<Transport, chain, account>,
   args: EstimateGasParameters<chain>,
-): Promise<EstimateGasReturnType> {
+): Promise<EstimateGasReturnType | EstimateRIP7560TransactionGasReturnType> {
   const account_ = args.account ?? client.account
   const account = account_ ? parseAccount(account_) : undefined
 
@@ -184,52 +186,71 @@ export async function estimateGas<
       value,
     } as TransactionRequest)
 
-    function estimateGas_rpc(parameters: {
-      block: any
-      request: any
-      rpcStateOverride: any
-    }) {
-      const { block, request, rpcStateOverride } = parameters
-      return client.request({
-        method: 'eth_estimateGas',
-        params: rpcStateOverride
-          ? [request, block ?? 'latest', rpcStateOverride]
-          : block
-            ? [request, block]
-            : [request],
-      })
-    }
+    if (!request.sender) {
+      function estimateGas_rpc(parameters: {
+        block: any
+        request: any
+        rpcStateOverride: any
+      }) {
+        const { block, request, rpcStateOverride } = parameters
+        return client.request({
+          method: 'eth_estimateGas',
+          params: rpcStateOverride
+            ? [request, block ?? 'latest', rpcStateOverride]
+            : block
+              ? [request, block]
+              : [request],
+        }) as Promise<Quantity>
+      }
 
-    let estimate = BigInt(
-      await estimateGas_rpc({ block, request, rpcStateOverride }),
-    )
-
-    // TODO(7702): Remove this once https://github.com/ethereum/execution-apis/issues/561 is resolved.
-    //       Authorization list schema is not implemented on JSON-RPC spec yet, so we need to
-    //       manually estimate the gas.
-    if (authorizationList) {
-      const value = await getBalance(client, { address: request.from })
-      const estimates = await Promise.all(
-        authorizationList.map(async (authorization) => {
-          const { contractAddress } = authorization
-          const estimate = await estimateGas_rpc({
-            block,
-            request: {
-              authorizationList: undefined,
-              data,
-              from: account?.address,
-              to: contractAddress,
-              value: numberToHex(value),
-            },
-            rpcStateOverride,
-          }).catch(() => 100_000n)
-          return 2n * BigInt(estimate)
-        }),
+      let estimate = BigInt(
+        await estimateGas_rpc({ block, request, rpcStateOverride }),
       )
-      estimate += estimates.reduce((acc, curr) => acc + curr, 0n)
+
+      // TODO(7702): Remove this once https://github.com/ethereum/execution-apis/issues/561 is resolved.
+      //       Authorization list schema is not implemented on JSON-RPC spec yet, so we need to
+      //       manually estimate the gas.
+      if (authorizationList && typeof estimate === 'bigint') {
+        const value = await getBalance(client, { address: request.from })
+        const estimates = await Promise.all(
+          authorizationList.map(async (authorization) => {
+            const { contractAddress } = authorization
+            const estimate = await estimateGas_rpc({
+              block,
+              request: {
+                authorizationList: undefined,
+                data,
+                from: account?.address,
+                to: contractAddress,
+                value: numberToHex(value),
+              },
+              rpcStateOverride,
+            }).catch(() => 100_000n)
+            return 2n * BigInt(estimate)
+          }),
+        )
+        estimate += estimates.reduce((acc, curr) => acc + curr, 0n)
+      }
+
+      return estimate
     }
 
-    return estimate
+    const { verificationGasLimit, callGasLimit } = (await client.request({
+      method: 'eth_estimateGas',
+      params: rpcStateOverride
+        ? [request, block ?? 'latest', rpcStateOverride]
+        : block
+          ? [request, block]
+          : [request],
+    })) as {
+      verificationGasLimit: Quantity
+      callGasLimit: Quantity
+    }
+
+    return {
+      verificationGasLimit: BigInt(verificationGasLimit),
+      callGasLimit: BigInt(callGasLimit),
+    }
   } catch (err) {
     throw getEstimateGasError(err as BaseError, {
       ...args,

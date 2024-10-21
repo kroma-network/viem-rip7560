@@ -78,7 +78,7 @@ export async function estimateTotalFee<
 
   const [l1Fee, l2Gas, l2GasPrice] = await Promise.all([
     estimateL1Fee(client, request as EstimateL1FeeParameters),
-    estimateGas(client, request as EstimateGasParameters),
+    estimateGas(client, request as EstimateGasParameters) as Promise<bigint>,
     getGasPrice(client),
   ])
 
