@@ -5,9 +5,12 @@ remappings = [
   "account-abstraction/=lib/account-abstraction/contracts/",
   "solady/=lib/solady/src/",
   "solady-dc09481/=lib/solady-dc09481/src/",
+  "@rip7560/=lib/rip7560_contracts/",
 ]
 src = "src"
 out = "out"
+
+evm_version = "cancun"
 
 [rpc_endpoints]
 mainnet = "${MAINNET_RPC_URL}"
