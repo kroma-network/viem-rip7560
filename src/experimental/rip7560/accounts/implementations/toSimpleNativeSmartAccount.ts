@@ -31,7 +31,10 @@ export type ToSimpleNativeSmartAccountReturnType = Prettify<
 >
 
 export type SimpleNativeSmartAccountImplementation = Assign<
-  NativeSmartAccountImplementation,
+  NativeSmartAccountImplementation<{
+    abi: typeof abi
+    deployer: { abi: typeof deployerAbi; address: Address }
+  }>,
   {
     decodeCalls: NonNullable<NativeSmartAccountImplementation['decodeCalls']>
     sign: NonNullable<NativeSmartAccountImplementation['sign']>
@@ -84,10 +87,10 @@ export async function toSimpleNativeSmartAccount(
           { to: result.args[0], value: result.args[1], data: result.args[2] },
         ]
       if (result.functionName === 'executeBatch')
-        return result.args[0].map((arg) => ({
-          to: arg.target,
-          value: arg.value,
-          data: arg.data,
+        return result.args[0].map((target, index) => ({
+          to: target,
+          value: result.args[1][index],
+          data: result.args[2][index],
         }))
       throw new BaseError(`unable to decode calls for "${result.functionName}"`)
     },
@@ -103,11 +106,9 @@ export async function toSimpleNativeSmartAccount(
         abi,
         functionName: 'executeBatch',
         args: [
-          calls.map((call) => ({
-            data: call.data ?? '0x',
-            target: call.to,
-            value: call.value ?? 0n,
-          })),
+          calls.map((call) => call.to),
+          calls.map((call) => call.value ?? 0n),
+          calls.map((call) => call.data ?? '0x'),
         ],
       })
     },
@@ -258,435 +259,236 @@ export function toReplaySafeHash({
 // Constants
 /////////////////////////////////////////////////////////////////////////////////////////////
 
-// TODO: Change this after the contract is determined. Now copied from Coinbase Wallet.
 const abi = [
-  { inputs: [], stateMutability: 'nonpayable', type: 'constructor' },
+  { type: 'constructor', inputs: [], stateMutability: 'nonpayable' },
+  { type: 'receive', stateMutability: 'payable' },
   {
-    inputs: [{ name: 'owner', type: 'bytes' }],
-    name: 'AlreadyOwner',
-    type: 'error',
-  },
-  { inputs: [], name: 'Initialized', type: 'error' },
-  {
-    inputs: [{ name: 'owner', type: 'bytes' }],
-    name: 'InvalidEthereumAddressOwner',
-    type: 'error',
+    type: 'function',
+    name: 'UPGRADE_INTERFACE_VERSION',
+    inputs: [],
+    outputs: [{ name: '', type: 'string', internalType: 'string' }],
+    stateMutability: 'view',
   },
   {
-    inputs: [{ name: 'key', type: 'uint256' }],
-    name: 'InvalidNonceKey',
-    type: 'error',
-  },
-  {
-    inputs: [{ name: 'owner', type: 'bytes' }],
-    name: 'InvalidOwnerBytesLength',
-    type: 'error',
-  },
-  { inputs: [], name: 'LastOwner', type: 'error' },
-  {
-    inputs: [{ name: 'index', type: 'uint256' }],
-    name: 'NoOwnerAtIndex',
-    type: 'error',
-  },
-  {
-    inputs: [{ name: 'ownersRemaining', type: 'uint256' }],
-    name: 'NotLastOwner',
-    type: 'error',
-  },
-  {
-    inputs: [{ name: 'selector', type: 'bytes4' }],
-    name: 'SelectorNotAllowed',
-    type: 'error',
-  },
-  { inputs: [], name: 'Unauthorized', type: 'error' },
-  { inputs: [], name: 'UnauthorizedCallContext', type: 'error' },
-  { inputs: [], name: 'UpgradeFailed', type: 'error' },
-  {
+    type: 'function',
+    name: '_packValidationData',
     inputs: [
-      { name: 'index', type: 'uint256' },
-      { name: 'expectedOwner', type: 'bytes' },
-      { name: 'actualOwner', type: 'bytes' },
+      { name: 'magicValue', type: 'bytes4', internalType: 'bytes4' },
+      { name: 'validUntil', type: 'uint48', internalType: 'uint48' },
+      { name: 'validAfter', type: 'uint48', internalType: 'uint48' },
     ],
-    name: 'WrongOwnerAtIndex',
-    type: 'error',
+    outputs: [{ name: '', type: 'bytes32', internalType: 'bytes32' }],
+    stateMutability: 'pure',
   },
   {
-    anonymous: false,
+    type: 'function',
+    name: 'execute',
     inputs: [
-      {
-        indexed: true,
-
-        name: 'index',
-        type: 'uint256',
-      },
-      { indexed: false, name: 'owner', type: 'bytes' },
+      { name: 'dest', type: 'address', internalType: 'address' },
+      { name: 'value', type: 'uint256', internalType: 'uint256' },
+      { name: 'func', type: 'bytes', internalType: 'bytes' },
     ],
-    name: 'AddOwner',
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'executeBatch',
+    inputs: [
+      { name: 'dest', type: 'address[]', internalType: 'address[]' },
+      { name: 'value', type: 'uint256[]', internalType: 'uint256[]' },
+      { name: 'func', type: 'bytes[]', internalType: 'bytes[]' },
+    ],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'initialize',
+    inputs: [{ name: 'anOwner', type: 'address', internalType: 'address' }],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'owner',
+    inputs: [],
+    outputs: [{ name: '', type: 'address', internalType: 'address' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'proxiableUUID',
+    inputs: [],
+    outputs: [{ name: '', type: 'bytes32', internalType: 'bytes32' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'upgradeToAndCall',
+    inputs: [
+      { name: 'newImplementation', type: 'address', internalType: 'address' },
+      { name: 'data', type: 'bytes', internalType: 'bytes' },
+    ],
+    outputs: [],
+    stateMutability: 'payable',
+  },
+  {
+    type: 'function',
+    name: 'validateTransaction',
+    inputs: [
+      { name: 'version', type: 'uint256', internalType: 'uint256' },
+      { name: 'txHash', type: 'bytes32', internalType: 'bytes32' },
+      { name: 'transaction', type: 'bytes', internalType: 'bytes' },
+    ],
+    outputs: [{ name: '', type: 'bytes32', internalType: 'bytes32' }],
+    stateMutability: 'view',
+  },
+  {
     type: 'event',
-  },
-  {
-    anonymous: false,
+    name: 'Initialized',
     inputs: [
       {
-        indexed: true,
-
-        name: 'index',
-        type: 'uint256',
+        name: 'version',
+        type: 'uint64',
+        indexed: false,
+        internalType: 'uint64',
       },
-      { indexed: false, name: 'owner', type: 'bytes' },
     ],
-    name: 'RemoveOwner',
-    type: 'event',
+    anonymous: false,
   },
   {
-    anonymous: false,
+    type: 'event',
+    name: 'SimpleAccount7560Initialized',
     inputs: [
       {
+        name: 'entryPoint',
+        type: 'address',
         indexed: true,
-
+        internalType: 'address',
+      },
+      {
+        name: 'owner',
+        type: 'address',
+        indexed: true,
+        internalType: 'address',
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: 'event',
+    name: 'Upgraded',
+    inputs: [
+      {
         name: 'implementation',
         type: 'address',
+        indexed: true,
+        internalType: 'address',
       },
     ],
-    name: 'Upgraded',
-    type: 'event',
-  },
-  { stateMutability: 'payable', type: 'fallback' },
-  {
-    inputs: [],
-    name: 'REPLAYABLE_NONCE_KEY',
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
+    anonymous: false,
   },
   {
-    inputs: [{ name: 'owner', type: 'address' }],
-    name: 'addOwnerAddress',
-    outputs: [],
-    stateMutability: 'nonpayable',
-    type: 'function',
+    type: 'error',
+    name: 'AddressEmptyCode',
+    inputs: [{ name: 'target', type: 'address', internalType: 'address' }],
+  },
+  { type: 'error', name: 'ECDSAInvalidSignature', inputs: [] },
+  {
+    type: 'error',
+    name: 'ECDSAInvalidSignatureLength',
+    inputs: [{ name: 'length', type: 'uint256', internalType: 'uint256' }],
   },
   {
+    type: 'error',
+    name: 'ECDSAInvalidSignatureS',
+    inputs: [{ name: 's', type: 'bytes32', internalType: 'bytes32' }],
+  },
+  {
+    type: 'error',
+    name: 'ERC1967InvalidImplementation',
     inputs: [
-      { name: 'x', type: 'bytes32' },
-      { name: 'y', type: 'bytes32' },
+      { name: 'implementation', type: 'address', internalType: 'address' },
     ],
-    name: 'addOwnerPublicKey',
-    outputs: [],
-    stateMutability: 'nonpayable',
-    type: 'function',
   },
+  { type: 'error', name: 'ERC1967NonPayable', inputs: [] },
+  { type: 'error', name: 'FailedCall', inputs: [] },
+  { type: 'error', name: 'InvalidInitialization', inputs: [] },
+  { type: 'error', name: 'NotInitializing', inputs: [] },
+  { type: 'error', name: 'UUPSUnauthorizedCallContext', inputs: [] },
   {
-    inputs: [{ name: 'functionSelector', type: 'bytes4' }],
-    name: 'canSkipChainIdValidation',
-    outputs: [{ name: '', type: 'bool' }],
-    stateMutability: 'pure',
-    type: 'function',
+    type: 'error',
+    name: 'UUPSUnsupportedProxiableUUID',
+    inputs: [{ name: 'slot', type: 'bytes32', internalType: 'bytes32' }],
   },
-  {
-    inputs: [],
-    name: 'domainSeparator',
-    outputs: [{ name: '', type: 'bytes32' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [],
-    name: 'eip712Domain',
-    outputs: [
-      { name: 'fields', type: 'bytes1' },
-      { name: 'name', type: 'string' },
-      { name: 'version', type: 'string' },
-      { name: 'chainId', type: 'uint256' },
-      { name: 'verifyingContract', type: 'address' },
-      { name: 'salt', type: 'bytes32' },
-      { name: 'extensions', type: 'uint256[]' },
-    ],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [],
-    name: 'entryPoint',
-    outputs: [{ name: '', type: 'address' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [
-      { name: 'target', type: 'address' },
-      { name: 'value', type: 'uint256' },
-      { name: 'data', type: 'bytes' },
-    ],
-    name: 'execute',
-    outputs: [],
-    stateMutability: 'payable',
-    type: 'function',
-  },
-  {
-    inputs: [
-      {
-        components: [
-          { name: 'target', type: 'address' },
-          { name: 'value', type: 'uint256' },
-          { name: 'data', type: 'bytes' },
-        ],
-
-        name: 'calls',
-        type: 'tuple[]',
-      },
-    ],
-    name: 'executeBatch',
-    outputs: [],
-    stateMutability: 'payable',
-    type: 'function',
-  },
-  {
-    inputs: [{ name: 'calls', type: 'bytes[]' }],
-    name: 'executeWithoutChainIdValidation',
-    outputs: [],
-    stateMutability: 'payable',
-    type: 'function',
-  },
-  {
-    inputs: [
-      {
-        components: [
-          { name: 'sender', type: 'address' },
-          { name: 'nonce', type: 'uint256' },
-          { name: 'initCode', type: 'bytes' },
-          { name: 'callData', type: 'bytes' },
-          { name: 'callGasLimit', type: 'uint256' },
-          {
-            name: 'verificationGasLimit',
-            type: 'uint256',
-          },
-          {
-            name: 'preVerificationGas',
-            type: 'uint256',
-          },
-          { name: 'maxFeePerGas', type: 'uint256' },
-          {
-            name: 'maxPriorityFeePerGas',
-            type: 'uint256',
-          },
-          { name: 'paymasterAndData', type: 'bytes' },
-          { name: 'signature', type: 'bytes' },
-        ],
-
-        name: 'userOp',
-        type: 'tuple',
-      },
-    ],
-    name: 'getUserOpHashWithoutChainId',
-    outputs: [{ name: '', type: 'bytes32' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [],
-    name: 'implementation',
-    outputs: [{ name: '$', type: 'address' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [{ name: 'owners', type: 'bytes[]' }],
-    name: 'initialize',
-    outputs: [],
-    stateMutability: 'payable',
-    type: 'function',
-  },
-  {
-    inputs: [{ name: 'account', type: 'address' }],
-    name: 'isOwnerAddress',
-    outputs: [{ name: '', type: 'bool' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [{ name: 'account', type: 'bytes' }],
-    name: 'isOwnerBytes',
-    outputs: [{ name: '', type: 'bool' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [
-      { name: 'x', type: 'bytes32' },
-      { name: 'y', type: 'bytes32' },
-    ],
-    name: 'isOwnerPublicKey',
-    outputs: [{ name: '', type: 'bool' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [
-      { name: 'hash', type: 'bytes32' },
-      { name: 'signature', type: 'bytes' },
-    ],
-    name: 'isValidSignature',
-    outputs: [{ name: 'result', type: 'bytes4' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [],
-    name: 'nextOwnerIndex',
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [{ name: 'index', type: 'uint256' }],
-    name: 'ownerAtIndex',
-    outputs: [{ name: '', type: 'bytes' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [],
-    name: 'ownerCount',
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [],
-    name: 'proxiableUUID',
-    outputs: [{ name: '', type: 'bytes32' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [
-      { name: 'index', type: 'uint256' },
-      { name: 'owner', type: 'bytes' },
-    ],
-    name: 'removeLastOwner',
-    outputs: [],
-    stateMutability: 'nonpayable',
-    type: 'function',
-  },
-  {
-    inputs: [
-      { name: 'index', type: 'uint256' },
-      { name: 'owner', type: 'bytes' },
-    ],
-    name: 'removeOwnerAtIndex',
-    outputs: [],
-    stateMutability: 'nonpayable',
-    type: 'function',
-  },
-  {
-    inputs: [],
-    name: 'removedOwnersCount',
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [{ name: 'hash', type: 'bytes32' }],
-    name: 'replaySafeHash',
-    outputs: [{ name: '', type: 'bytes32' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [
-      { name: 'newImplementation', type: 'address' },
-      { name: 'data', type: 'bytes' },
-    ],
-    name: 'upgradeToAndCall',
-    outputs: [],
-    stateMutability: 'payable',
-    type: 'function',
-  },
-  {
-    inputs: [
-      {
-        components: [
-          { name: 'sender', type: 'address' },
-          { name: 'nonce', type: 'uint256' },
-          { name: 'initCode', type: 'bytes' },
-          { name: 'callData', type: 'bytes' },
-          { name: 'callGasLimit', type: 'uint256' },
-          {
-            name: 'verificationGasLimit',
-            type: 'uint256',
-          },
-          {
-            name: 'preVerificationGas',
-            type: 'uint256',
-          },
-          { name: 'maxFeePerGas', type: 'uint256' },
-          {
-            name: 'maxPriorityFeePerGas',
-            type: 'uint256',
-          },
-          { name: 'paymasterAndData', type: 'bytes' },
-          { name: 'signature', type: 'bytes' },
-        ],
-
-        name: 'userOp',
-        type: 'tuple',
-      },
-      { name: 'userOpHash', type: 'bytes32' },
-      { name: 'missingAccountFunds', type: 'uint256' },
-    ],
-    name: 'validateUserOp',
-    outputs: [{ name: 'validationData', type: 'uint256' }],
-    stateMutability: 'nonpayable',
-    type: 'function',
-  },
-  { stateMutability: 'payable', type: 'receive' },
 ] as const
 
 const deployerAbi = [
   {
-    inputs: [{ name: 'implementation_', type: 'address' }],
-    stateMutability: 'payable',
     type: 'constructor',
+    inputs: [],
+    stateMutability: 'nonpayable',
   },
-  { inputs: [], name: 'OwnerRequired', type: 'error' },
   {
-    inputs: [
-      { name: 'owners', type: 'address' },
-      { name: 'nonce', type: 'uint256' },
-    ],
-    name: 'createAccount',
+    type: 'function',
+    name: 'accountImplementation',
+    inputs: [],
     outputs: [
       {
-        name: 'account',
+        name: '',
         type: 'address',
+        internalType: 'contract SimpleAccount_7560',
       },
     ],
-    stateMutability: 'payable',
-    type: 'function',
+    stateMutability: 'view',
   },
   {
+    type: 'function',
+    name: 'createAccount',
     inputs: [
-      { name: 'owners', type: 'address' },
-      { name: 'nonce', type: 'uint256' },
+      {
+        name: 'owner',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'salt',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
     ],
+    outputs: [
+      {
+        name: 'ret',
+        type: 'address',
+        internalType: 'contract SimpleAccount_7560',
+      },
+    ],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
     name: 'getAddress',
-    outputs: [{ name: '', type: 'address' }],
+    inputs: [
+      {
+        name: 'owner',
+        type: 'address',
+        internalType: 'address',
+      },
+      {
+        name: 'salt',
+        type: 'uint256',
+        internalType: 'uint256',
+      },
+    ],
+    outputs: [
+      {
+        name: '',
+        type: 'address',
+        internalType: 'address',
+      },
+    ],
     stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [],
-    name: 'implementation',
-    outputs: [{ name: '', type: 'address' }],
-    stateMutability: 'view',
-    type: 'function',
-  },
-  {
-    inputs: [],
-    name: 'initCodeHash',
-    outputs: [{ name: '', type: 'bytes32' }],
-    stateMutability: 'view',
-    type: 'function',
   },
 ] as const
