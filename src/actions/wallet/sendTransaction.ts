@@ -22,7 +22,7 @@ import type { GetAccountParameter } from '../../types/account.js'
 import type { Chain, DeriveChain } from '../../types/chain.js'
 import type { GetChainParameter } from '../../types/chain.js'
 import type { GetTransactionRequestKzgParameter } from '../../types/kzg.js'
-import type { Hash } from '../../types/misc.js'
+import type { Hash, Hex } from '../../types/misc.js'
 import type { TransactionRequest } from '../../types/transaction.js'
 import type { UnionOmit } from '../../types/utils.js'
 import type { RequestErrorType } from '../../utils/buildRequest.js'
@@ -40,12 +40,14 @@ import {
   formatTransactionRequest,
 } from '../../utils/formatters/transactionRequest.js'
 import { getAction } from '../../utils/getAction.js'
+import { toHex } from '../../utils/index.js'
 import {
   type AssertRequestErrorType,
   type AssertRequestParameters,
   assertRequest,
 } from '../../utils/transaction/assertRequest.js'
 import { type GetChainIdErrorType, getChainId } from '../public/getChainId.js'
+import { getGasPrice } from '../public/getGasPrice.js'
 import {
   type PrepareTransactionRequestErrorType,
   defaultParameters,
@@ -174,6 +176,7 @@ export async function sendTransaction<
     verificationGasLimit,
     paymasterVerificationGasLimit,
     paymasterPostOpGasLimit,
+    authorizationData,
     type,
     ...rest
   } = parameters
@@ -206,7 +209,7 @@ export async function sendTransaction<
       return undefined
     })()
 
-    if (account.type === 'json-rpc' || account.type === 'native-smart') {
+    if (account.type === 'json-rpc') {
       let chainId: number | undefined
       if (chain !== null) {
         chainId = await getAction(client, getChainId, 'getChainId')({})
@@ -236,17 +239,6 @@ export async function sendTransaction<
         nonce,
         to,
         value,
-        nonceKey,
-        sender,
-        executionData,
-        deployer,
-        deployerData,
-        paymaster,
-        paymasterData,
-        builderFee,
-        verificationGasLimit,
-        paymasterVerificationGasLimit,
-        paymasterPostOpGasLimit,
       } as TransactionRequest)
       return await client.request(
         {
@@ -257,7 +249,7 @@ export async function sendTransaction<
       )
     }
 
-    if (account.type === 'local') {
+    if (account.type === 'local' || account.type === 'native-smart') {
       // Prepare the request for signing (assign appropriate fees, etc.)
       const request = await getAction(
         client,
@@ -276,6 +268,18 @@ export async function sendTransaction<
         maxFeePerGas,
         maxPriorityFeePerGas,
         nonce,
+        nonceKey,
+        sender,
+        executionData,
+        deployer,
+        deployerData,
+        paymaster,
+        paymasterData,
+        builderFee,
+        verificationGasLimit,
+        paymasterVerificationGasLimit,
+        paymasterPostOpGasLimit,
+        authorizationData,
         nonceManager: account.nonceManager,
         parameters: [...defaultParameters, 'sidecars'],
         value,
@@ -287,6 +291,50 @@ export async function sendTransaction<
       const serializedTransaction = (await account.signTransaction(request, {
         serializer,
       })) as Hash
+
+      if (account.type === 'native-smart') {
+        request.gasPrice = await getGasPrice(client)
+        // Apply 20% buffer to gas and verification gas limits
+        request.gas = (request.gas * BigInt(120)) / BigInt(100)
+        request.verificationGasLimit =
+          (request.verificationGasLimit * BigInt(120)) / BigInt(100)
+        request.paymasterVerificationGasLimit =
+          request.paymasterVerificationGasLimit
+            ? (request.paymasterVerificationGasLimit * BigInt(120)) /
+              BigInt(100)
+            : 1n
+        request.paymasterPostOpGasLimit = request.paymasterPostOpGasLimit
+          ? toHex((request.paymasterPostOpGasLimit * BigInt(120)) / BigInt(100))
+          : 1n
+        request.builderFee = request.builderFee ?? 1n
+        request.nonceKey = request.nonceKey ?? 0n
+
+        delete request.chain
+        delete request.account
+
+        request.authorizationData = (await account.signTransaction(request, {
+          serializer,
+        })) as Hash
+
+        delete request.type
+
+        // Convert all numbers to hex
+        for (const [key, value] of Object.entries(request)) {
+          request[key] =
+            typeof value === 'bigint' || typeof value === 'number'
+              ? toHex(value)
+              : value
+        }
+
+        return (await account.bundlerClient?.request(
+          {
+            method: 'eth_sendTransaction',
+            params: [request],
+          },
+          { retryCount: 0 },
+        )) as Hex
+      }
+
       return await getAction(
         client,
         sendRawTransaction,

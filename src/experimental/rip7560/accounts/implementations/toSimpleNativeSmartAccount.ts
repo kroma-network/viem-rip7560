@@ -60,7 +60,7 @@ export type SimpleNativeSmartAccountImplementation = Assign<
 export async function toSimpleNativeSmartAccount(
   parameters: ToSimpleNativeSmartAccountParameters,
 ): Promise<ToSimpleNativeSmartAccountReturnType> {
-  const { client, owner, nonce = 0n } = parameters
+  const { client, bundlerClient, owner, nonce = 0n } = parameters
 
   let address = parameters.address
   const ownerAddr = owner.address as Hex
@@ -73,7 +73,7 @@ export async function toSimpleNativeSmartAccount(
 
   return toNativeSmartAccount({
     client,
-
+    bundlerClient,
     extend: { abi, deployer },
 
     async decodeCalls(data) {

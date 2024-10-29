@@ -28,6 +28,11 @@ type Call = {
 export type NativeSmartAccountImplementation<extend extends object = object> = {
   /** Client used to retrieve Smart Account data, and perform signing (if owner is a JSON-RPC Account). */
   client: Client
+  /**
+   * Bundler client used to send tx and estimate gas
+   * TODO: Remove this once we integrate bundler into RPC
+   * */
+  bundlerClient?: Client | undefined
   /** Extend the Smart Account with custom properties. */
   extend?: extend | undefined
   /**
