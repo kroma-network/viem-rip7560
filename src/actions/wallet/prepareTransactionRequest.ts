@@ -35,7 +35,6 @@ import type { DeriveAccount, GetAccountParameter } from '../../types/account.js'
 import type { Block } from '../../types/block.js'
 import type { Chain, DeriveChain } from '../../types/chain.js'
 import type { GetChainParameter } from '../../types/chain.js'
-import type { ContractFunctionParameters } from '../../types/contract.js'
 import type { GetTransactionRequestKzgParameter } from '../../types/kzg.js'
 import type {
   TransactionRequest,
@@ -54,7 +53,6 @@ import type {
   UnionOmit,
   UnionRequiredBy,
 } from '../../types/utils.js'
-import { encodeFunctionData } from '../../utils/abi/encodeFunctionData.js'
 import { blobsToCommitments } from '../../utils/blob/blobsToCommitments.js'
 import { blobsToProofs } from '../../utils/blob/blobsToProofs.js'
 import { commitmentsToVersionedHashes } from '../../utils/blob/commitmentsToVersionedHashes.js'
@@ -383,23 +381,6 @@ export async function prepareTransactionRequest<
     }
   }
 
-  if (args.calls && account?.type === 'native-smart') {
-    request.executionData = await account.encodeCalls(
-      args.calls.map((call_) => {
-        const call = call_ as
-          | Calls
-          | (ContractFunctionParameters & { to: Address; value: bigint })
-        if ('abi' in call)
-          return {
-            data: encodeFunctionData(call),
-            to: call.to,
-            value: call.value,
-          } as Calls
-        return call as Calls
-      }),
-    )
-  }
-
   if (parameters.includes('sender')) {
     if (account) request.sender = account.address
   }
@@ -413,6 +394,20 @@ export async function prepareTransactionRequest<
   }
 
   // TODO(7560): add paymaster-related data for RIP-7560 transaction.
+  if (parameters.includes('paymaster')) {
+    request.paymaster = undefined
+    request.paymasterData = '0x'
+    request.paymasterVerificationGasLimit = 0n
+    request.paymasterPostOpGasLimit = 0n
+  }
+
+  if (parameters.includes('executionData')) {
+    request.executionData = request.executionData ?? '0x'
+  }
+
+  if (parameters.includes('builderFee')) {
+    request.builderFee = request.builderFee ?? 0n
+  }
 
   if (parameters.includes('fees')) {
     // TODO(4844): derive blob base fees once https://github.com/ethereum/execution-apis/pull/486 is merged.
@@ -465,8 +460,18 @@ export async function prepareTransactionRequest<
     }
   }
 
-  if (parameters.includes('authorizationData') && !args.authorizationData) {
-    request.authorizationData = await account?.getStubSignature()
+  if (
+    parameters.includes('authorizationData') &&
+    !args.authorizationData &&
+    account?.type === 'native-smart'
+  ) {
+    request.authorizationData = await account.getStubSignature()
+  }
+
+  if (parameters.includes('builderFee')) {
+    if (typeof request.builderFee === 'undefined') {
+      request.builderFee = 0n
+    }
   }
 
   if (parameters.includes('gas') && typeof gas === 'undefined') {
@@ -482,8 +487,15 @@ export async function prepareTransactionRequest<
           : undefined,
       } as EstimateGasParameters)) as bigint
     } else {
+      const maxFeePerGas = request.maxFeePerGas ?? 0n
+      const maxPriorityFeePerGas = request.maxPriorityFeePerGas ?? 0n
+
+      // TODO: This is to prevent gaspool error from happening, should be fixed
+      delete request.maxFeePerGas
+      delete request.maxPriorityFeePerGas
+
       const gasEstimationResult = (await getAction(
-        client,
+        account.bundlerClient ?? client,
         estimateGas,
         'estimateGas',
       )({
@@ -491,13 +503,14 @@ export async function prepareTransactionRequest<
         builderFee: 0n,
         verificationGasLimit: 0n,
         ...request,
-        account: account
-          ? { address: account.address, type: 'native-smart' }
-          : undefined,
+        account: account ?? undefined,
       } as EstimateGasParameters)) as EstimateRIP7560TransactionGasReturnType
 
-      request.gas = gasEstimationResult.callGasLimit
-      request.verificationGasLimit = gasEstimationResult.verificationGasLimit
+      request.gas = gasEstimationResult.callGasLimit ?? 0n
+      request.verificationGasLimit =
+        gasEstimationResult.verificationGasLimit ?? 0n
+      request.maxFeePerGas = maxFeePerGas
+      request.maxPriorityFeePerGas = maxPriorityFeePerGas
     }
   }
 

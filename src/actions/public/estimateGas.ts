@@ -32,6 +32,7 @@ import {
   type FormattedTransactionRequest,
   formatTransactionRequest,
 } from '../../utils/formatters/transactionRequest.js'
+import { hexToBigInt } from '../../utils/index.js'
 import { serializeStateOverride } from '../../utils/stateOverride.js'
 import {
   type AssertRequestErrorType,
@@ -128,6 +129,18 @@ export async function estimateGas<
       maxPriorityFeePerGas,
       nonce,
       value,
+      nonceKey,
+      sender,
+      executionData,
+      builderFee,
+      verificationGasLimit,
+      deployer,
+      deployerData,
+      paymaster,
+      paymasterData,
+      paymasterVerificationGasLimit,
+      paymasterPostOpGasLimit,
+      authorizationData,
       stateOverride,
       ...rest
     } = (await prepareTransactionRequest(client, {
@@ -135,7 +148,24 @@ export async function estimateGas<
       parameters:
         // Some RPC Providers do not compute versioned hashes from blobs. We will need
         // to compute them.
-        account?.type === 'local' ? undefined : ['blobVersionedHashes'],
+        account?.type === 'local'
+          ? undefined
+          : account?.type === 'native-smart'
+            ? [
+                'nonceKey',
+                'sender',
+                'builderFee',
+                'verificationGasLimit',
+                'executionData',
+                'deployer',
+                'deployerData',
+                'paymaster',
+                'paymasterData',
+                'paymasterVerificationGasLimit',
+                'paymasterPostOpGasLimit',
+                'authorizationData',
+              ]
+            : ['blobVersionedHashes'],
     } as PrepareTransactionRequestParameters)) as EstimateGasParameters
 
     const blockNumberHex = blockNumber ? numberToHex(blockNumber) : undefined
@@ -184,6 +214,18 @@ export async function estimateGas<
       nonce,
       to,
       value,
+      nonceKey,
+      sender,
+      executionData,
+      builderFee,
+      verificationGasLimit,
+      deployer,
+      deployerData,
+      paymaster,
+      paymasterData,
+      paymasterVerificationGasLimit,
+      paymasterPostOpGasLimit,
+      authorizationData,
     } as TransactionRequest)
 
     if (!request.sender) {
@@ -235,21 +277,24 @@ export async function estimateGas<
       return estimate
     }
 
-    const { verificationGasLimit, callGasLimit } = (await client.request({
-      method: 'eth_estimateGas',
-      params: rpcStateOverride
-        ? [request, block ?? 'latest', rpcStateOverride]
-        : block
-          ? [request, block]
-          : [request],
-    })) as {
-      verificationGasLimit: Quantity
-      callGasLimit: Quantity
-    }
+    // For RIP-7560 transactions
+    const bundlerClient = account?.bundlerClient
+    const { verificationGasLimit: validationGas, callGasLimit } =
+      (await bundlerClient?.request({
+        method: 'eth_estimateGas',
+        params: rpcStateOverride
+          ? [request, block ?? 'latest', rpcStateOverride]
+          : block
+            ? [request, block]
+            : [request],
+      })) as {
+        verificationGasLimit: Quantity
+        callGasLimit: Quantity
+      }
 
     return {
-      verificationGasLimit: BigInt(verificationGasLimit),
-      callGasLimit: BigInt(callGasLimit),
+      verificationGasLimit: hexToBigInt(validationGas),
+      callGasLimit: hexToBigInt(callGasLimit),
     }
   } catch (err) {
     throw getEstimateGasError(err as BaseError, {

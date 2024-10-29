@@ -17,15 +17,15 @@ import type {
   TransactionEIP2930,
   TransactionEIP4844,
   TransactionEIP7702,
-  TransactionRIP7560,
   TransactionLegacy,
+  TransactionRIP7560,
   TransactionReceipt,
   TransactionRequestEIP1559,
   TransactionRequestEIP2930,
   TransactionRequestEIP4844,
   TransactionRequestEIP7702,
-  TransactionRequestRIP7560,
   TransactionRequestLegacy,
+  TransactionRequestRIP7560,
 } from './transaction.js'
 import type { Omit, OneOf, PartialBy } from './utils.js'
 
