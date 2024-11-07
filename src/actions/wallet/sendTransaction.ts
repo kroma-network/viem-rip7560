@@ -302,11 +302,11 @@ export async function sendTransaction<
           request.paymasterVerificationGasLimit
             ? (request.paymasterVerificationGasLimit * BigInt(120)) /
               BigInt(100)
-            : 1n
+            : 0n
         request.paymasterPostOpGasLimit = request.paymasterPostOpGasLimit
           ? toHex((request.paymasterPostOpGasLimit * BigInt(120)) / BigInt(100))
-          : 1n
-        request.builderFee = request.builderFee ?? 1n
+          : 0n
+        request.builderFee = request.builderFee ?? 0n
         request.nonceKey = request.nonceKey ?? 0n
 
         delete request.chain
