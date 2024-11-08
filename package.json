@@ -22,7 +22,7 @@
     "lint": "biome check --fix",
     "lint:repo": "sherif",
     "lint:unused": "pnpm clean && knip",
-    "postinstall": "git submodule update --init --recursive && pnpm contracts:build",
+    "postinstall": "git submodule update --init --recursive",
     "preconstruct": "bun scripts/preconstruct.ts",
     "preinstall": "pnpx only-allow pnpm",
     "prepare": "pnpm simple-git-hooks",
