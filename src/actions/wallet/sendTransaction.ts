@@ -294,10 +294,10 @@ export async function sendTransaction<
 
       if (account.type === 'native-smart') {
         request.gasPrice = await getGasPrice(client)
-        // Apply 20% buffer to gas and verification gas limits
-        request.gas = (request.gas * BigInt(120)) / BigInt(100)
+        // Apply 20%-25% buffer to gas and verification gas limits
+        request.gas = (request.gas * BigInt(125)) / BigInt(100)
         request.verificationGasLimit =
-          (request.verificationGasLimit * BigInt(120)) / BigInt(100)
+          (request.verificationGasLimit * BigInt(125)) / BigInt(100)
         request.paymasterVerificationGasLimit =
           request.paymasterVerificationGasLimit
             ? (request.paymasterVerificationGasLimit * BigInt(120)) /
